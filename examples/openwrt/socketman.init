@@ -9,8 +9,10 @@ USE_PROCD=1
 PROG=/usr/bin/socketman
 CONFIGFILE=/etc/socketman
 MACF=/etc/mac
+UUIDF=/etc/uuid
 WAN=$(/sbin/uci -P/var/state get network.wan.ifname)
 MAC=$(ifconfig $WAN | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'| sed 's/:/-/g')
+UUID=$(/usr/bin/uuidgen)
 
 check_wan() {
   if
@@ -35,10 +37,33 @@ generate_mac() {
   fi
 }
 
+generate_uuid() {
+  if
+    echo "$UUID" > "$UUIDF"
+    check_uuid "$UUIDF"
+  then
+    return 0
+  else
+    echo "Could not create UUID"
+    exit
+  fi
+}
+
 check_mac() {
   if
     head -1 $1 | grep "-" > /dev/null && \
     wc -c $1 | awk '{ print $1 }' | { read wc; test $wc -eq 18; }
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+
+check_uuid() {
+  if
+    head -1 $1 | grep "-" > /dev/null && \
+    wc -c $1 | awk '{ print $1 }' | { read wc; test $wc -eq 37; }
   then
     return 0
   else
@@ -58,12 +83,13 @@ start_socketman() {
 start_service() {
     touch $MACF
   if
-    check_mac $MACF
+    check_mac $MACF && check_uuid $UUIDF
   then
     start_socketman
   else
     check_wan
     generate_mac
+    generate_uuid
     start_socketman
   fi
 }
